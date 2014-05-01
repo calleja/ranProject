@@ -1,0 +1,26 @@
+DB tables
+
+~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~
+1--b_bond_chain:
+afs_fslid
+afs_hcapl
+b_bond_issue_underwriter_no_dupes
+5--b_bond_no_dupes
+b_equity
+b_top_20_unique
+b_top_20Holders
+b_unq_uwname
+10--chemicals
+dstnct_mngr_code
+dstnct_mngr_code
+finances
+FRS
+15--icis_f
+icis_qnrc_hc
+name_warehouse_companion
+sic
+sic_per_ticker
+20--sic_ticker
+toxicity
+tri
