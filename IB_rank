@@ -1,0 +1,169 @@
+-- --------------------------------------------------------------------------------
+-- Routine DDL
+-- Note: comments before and after the routine body will not be stored by the server
+-- --------------------------------------------------------------------------------
+DELIMITER $$
+
+CREATE DEFINER=`root`@`localhost` FUNCTION `darting`(sicGuy Int(3), mngr_code INTEGER(3)) RETURNS double
+BEGIN
+DECLARE deals, done INTEGER;
+DECLARE rank, totals INTEGER DEFAULT 0;
+DECLARE x INTEGER DEFAULT 0;
+DECLARE PERCENTILE DOUBLE;
+DECLARE comp_id INTEGER(4);
+
+/* the below worked... I now need to run a select statement similar to the following; create a CURSOR
+to iterate through the result set*/
+
+DECLARE cursl CURSOR FOR
+/* this select statements returns a result set w/all the other
+IBs that have underwritten in the industry, and returns them in ranked order**/
+select count(distinct uw.ticker) as no_of_deals, dstnct.uw_code_id
+from b_bond_issue_underwriter_no_dupes uw 
+join b_bond_chain as bc on uw.ticker = bc.alt_bloom_id -- link bonds to its underwriters
+join dstnct_mngr_code dstnct on dstnct.mngr_cde = uw.mngr_cde -- link underwriters to main house
+-- join b_unq_uwname unq on unq.uw_id = dstnct.uw_code_id ... don't need this because will already have the code_id from initial SELECT
+join sic_per_ticker b on bc.ticker = b.ticker 
+join sic_ticker t on t.sic_code= left(b.sic,2) 
+where t.sic_code = sicGuy
+group by left(b.sic,2), dstnct.uw_code_id order by no_of_deals desc;
+
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+OPEN cursl;
+
+runIt_loop:Loop
+FETCH cursl INTO deals, comp_id;
+
+IF done THEN
+	-- SET totals = cursl%ROWCOUNT; 
+	CLOSE cursl;
+	LEAVE runIt_loop;
+END IF;
+
+set x= x+1;
+-- this broke before, but trying again
+IF comp_id = mngr_code THEN
+	SET rank = x;
+END IF;
+
+END LOOP;
+
+SET percentile = (1- rank/x);
+
+/* instert a conditional statement that counts the rows until the cursor reaches the IB of interest,
+but allows the loop to go until the end of all the rows in order to get a count */
+
+RETURN percentile;
+END
+-- Just in case, below is the stored procedure I wrote before I shut down for the night:
+
+-- --------------------------------------------------------------------------------
+-- Routine DDL
+-- Note: comments before and after the routine body will not be stored by the server
+-- --------------------------------------------------------------------------------
+DELIMITER $$
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `getTotals`(
+IN uwId INT)
+Begin
+DECLARE done INT DEFAULT FALSE;
+DECLARE deals, cantidad, sicCode, sic INTEGER;
+
+/*the cursor is embedded in this select procedure - after fetching each row 
+from the cursor and calling the getRank procedure, will have to populate a table
+with the results*/
+
+DECLARE cursl CURSOR FOR
+-- just extracting the SICs of which the IB has done business
+	select count(distinct uw.ticker) as no_of_deals, t.sic_code 
+from b_bond_issue_underwriter_no_dupes uw 
+join b_bond_chain as bc on uw.ticker = bc.alt_bloom_id 
+join dstnct_mngr_code dstnct on dstnct.mngr_cde = uw.mngr_cde
+join b_unq_uwname unq on unq.uw_id = dstnct.uw_code_id
+join sic_per_ticker b on bc.ticker = b.ticker 
+join sic_ticker t on t.sic_code= left(b.sic,2) 
+where unq.uw_id = uwId 
+group by left(b.sic,2) order by no_of_deals desc;
+
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+/* create a table to store all the answers***/
+CREATE TEMPORARY TABLE mana (cantidad INT,sicCode INT unique);
+/* table should contain the total number of firms that have underwritten, 
+the rank of the target firm, (from the 2nd procedure/function)
+the no. of deals underwritten from the 2nd procedure/function)*/
+OPEN cursl;
+
+runIt_loop:Loop
+FETCH cursl INTO deals, sic;
+
+IF done THEN 
+	CLOSE cursl;
+	LEAVE runIt_loop;
+END IF;
+/* 
+darting(sic int(2));
+what it will look like when I build the darting funciton */
+
+insert into mana set cantidad = deals, sicCode = sic;
+
+
+END LOOP;
+END
+
+
+Delimiter ;
+----------------------------------------
+-- --------------------------------------------------------------------------------
+-- Routine DDL
+-- Note: comments before and after the routine body will not be stored by the server
+-- --------------------------------------------------------------------------------
+DELIMITER $$
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `getTotals`(
+IN uwId INT)
+Begin
+DECLARE done INT DEFAULT FALSE;
+DECLARE deals, cantidad, sicCode, sic INTEGER;
+
+/*the cursor is embedded in this select procedure - after fetching each row 
+from the cursor and calling the getRank procedure, will have to populate a table
+with the results*/
+
+DECLARE cursl CURSOR FOR
+-- just extracting the SICs of which the IB has done business
+	select count(distinct uw.ticker) as no_of_deals, t.sic_code 
+from b_bond_issue_underwriter_no_dupes uw 
+join b_bond_chain as bc on uw.ticker = bc.alt_bloom_id 
+join dstnct_mngr_code dstnct on dstnct.mngr_cde = uw.mngr_cde
+join b_unq_uwname unq on unq.uw_id = dstnct.uw_code_id
+join sic_per_ticker b on bc.ticker = b.ticker 
+join sic_ticker t on t.sic_code= left(b.sic,2) 
+where unq.uw_id = uwId 
+group by left(b.sic,2) order by no_of_deals desc;
+
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+/* create a table to store all the answers***/
+CREATE TEMPORARY TABLE mana (cantidad INT,sicCode INT unique);
+/* table should contain the total number of firms that have underwritten, 
+the rank of the target firm, (from the 2nd procedure/function)
+the no. of deals underwritten from the 2nd procedure/function)*/
+OPEN cursl;
+
+runIt_loop:Loop
+FETCH cursl INTO deals, sic;
+
+IF done THEN 
+	CLOSE cursl;
+	LEAVE runIt_loop;
+END IF;
+/* 
+darting(sic int(2));
+what it will look like when I build the darting funciton */
+
+insert into mana set cantidad = deals, sicCode = sic;
+
+
+END LOOP;
+END
