@@ -1,0 +1,56 @@
+-- --------------------------------------------------------------------------------
+-- Routine DDL
+-- Note: comments before and after the routine body will not be stored by the server
+-- --------------------------------------------------------------------------------
+DELIMITER $$
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `getTotals`(
+IN uwId INT)
+Begin
+DECLARE done INT DEFAULT FALSE;
+/*for each query result variable, there must be a corresponding receiving
+variable to place in the fetch loop*/
+DECLARE deals, cantidad, sicCode, sic INTEGER;
+DECLARE industry, rawIndustry varChar(70);
+
+/*the cursor is embedded in this select procedure - after fetching each row 
+from the cursor and calling the getRank procedure, will have to populate a table
+with the results*/
+
+DECLARE cursl CURSOR FOR
+-- just extracting the SICs of which the IB has done business
+	select count(distinct uw.ticker) as no_of_deals, t.sic_code, t.industry
+from b_bond_issue_underwriter_no_dupes uw 
+join b_bond_chain as bc on uw.ticker = bc.alt_bloom_id 
+join dstnct_mngr_code dstnct on dstnct.mngr_cde = uw.mngr_cde
+join b_unq_uwname unq on unq.uw_id = dstnct.uw_code_id
+join sic_per_ticker b on bc.ticker = b.ticker 
+join sic_ticker t on t.sic_code= left(b.sic,2) 
+where unq.uw_id = uwId 
+group by left(b.sic,2) order by no_of_deals desc;
+
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+/* create a table to store all the answers***/
+CREATE TEMPORARY TABLE mana (cantidad INT,sicCode INT unique, industry varchar(70));
+/* table should contain the total number of firms that have underwritten, 
+the rank of the target firm, (from the 2nd procedure/function)
+the no. of deals underwritten from the 2nd procedure/function)*/
+OPEN cursl;
+
+runIt_loop:Loop
+FETCH cursl INTO deals, sic, rawIndustry;
+
+IF done THEN 
+	CLOSE cursl;
+	LEAVE runIt_loop;
+END IF;
+/* 
+darting(sic int(2));
+what it will look like when I build the darting funciton */
+
+insert into mana set cantidad = deals, sicCode = sic, industry=rawIndustry;
+
+
+END LOOP;
+END
